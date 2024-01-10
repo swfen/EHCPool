@@ -27,7 +27,8 @@ def Iterative_topn(node_prem_lab, edge_perm, subgraph_num, retain_subnode, edge_
     subgraph_edge_index_perm = torch.tensor((),dtype=torch.long,device=node_perm.device)
     sub_x_index = []
     x_perm = []
-    for i in range(batch_size):
+    batch = len(node_prem_lab)
+    for i in range(len(node_prem_lab)):
         node_prem_batch = node_prem_lab[i,:]
         ten = torch.tensor([],dtype=torch.long,device=node_perm.device)
         for j in range(subgraph_num):
@@ -209,26 +210,34 @@ class Iterative_hard_clustering_pool(MessagePassing):
             col2 = torch.nonzero(a2)[0]
             col = col1+col2
             mask.append(col)
-        edge_index_len = len(subgraph_edge_index_perm[0, :])
-        subgraph_edge_index_col1 = torch.arange(0,edge_index_len,dtype=torch.long,device=x.device)
-        subgraph_edge_index_col2 = []
-        maxrange = int(edge_index_len + edge_index_len / (self.retain_subnode - 1))
-        for i in range(edge_index_len,maxrange):
-            subgraph_edge_index_col2.append(torch.repeat_interleave(torch.tensor(i,dtype=torch.long,device=x.device), self.retain_subnode-1))
 
+
+        subgraph_edge_index_col1 = torch.arange(0,len(x),dtype=torch.long,device=x.device)
+        subgraph_edge_index_col2 = []
+        core_node_index = np.arange(0, len(node_batch), self.retain_subnode, dtype=np.int)
+
+        for i in core_node_index:
+            subgraph_edge_index_col2.append(torch.repeat_interleave(torch.tensor(i,dtype=torch.long,device=x.device), self.retain_subnode-1))
         subgraph_edge_index_col2 = torch.stack(subgraph_edge_index_col2).view(-1)
+
+        # 创建一个掩码，将要删除的索引位置置为 False，其他位置为 True
+        remove_core_mask = torch.ones(subgraph_edge_index_col1.size(), dtype=torch.bool)
+        remove_core_mask[core_node_index] = False
+        subgraph_edge_index_col1 = subgraph_edge_index_col1[remove_core_mask]
+
         subgraph_edge_index = torch.stack((subgraph_edge_index_col1,subgraph_edge_index_col2),dim=0)
+
         mask = torch.stack(mask).view(-1)
         edge_attr = edge_attr[mask,:]
         x_perm_lab = x_perm_lab.cpu().numpy()
-        for batch_num in range(self.batch_size):
+        for batch_num in range(int(len(x_perm_lab)/2)):
             for i in range(batch_num*self.subgraph_num,batch_num*self.subgraph_num+self.subgraph_num):
                 for j in range(self.retain_subnode):
                     x_perm_lab[i][j] = x_perm_lab[i][j]-90*batch_num
 
         """ N-E aggregation"""
-        x = self.propagate(subgraph_edge_index, x=x, edge_attr=edge_attr, size= None).to(x.device)
-        core_node_index = torch.arange(0, len(node_batch), self.retain_subnode, dtype=torch.long, device=x.device)
+        out = self.propagate(subgraph_edge_index, x=x, edge_attr=edge_attr, size= None).to(x.device)
+        x = x+out
         core_x = x[core_node_index, :]
         return core_x,x_perm_lab, subgraph_edge_index_perm,subgraph_edge_index, edge_attr,node_batch
 
