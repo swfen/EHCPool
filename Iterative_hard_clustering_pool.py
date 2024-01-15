@@ -193,7 +193,7 @@ class Iterative_hard_clustering_pool(MessagePassing):
         edge_attr = edge_attr[edge_perm] * edge_score[edge_perm].view(-1, 1)
         edge_attr = self.multiplier * edge_attr if self.multiplier != 1 else edge_attr
 
-        node_score = (self.nonlinearity((1-self.node_ignorance)*(x * self.weight_node).sum(dim=-1)/ self.weight_edge.norm(p=2, dim=-1)))+get_node_score(edge_score, edge_index)
+        node_score = (self.nonlinearity((1-self.node_ignorance)*(x * self.weight_node).sum(dim=-1)/ self.weight_node.norm(p=2, dim=-1)))+get_node_score(edge_score, edge_index)
         node_perm, node_prem_lab = topk(node_score, len(node_score), node_batch, self.min_score)
 
         """ Iterative_topn"""
