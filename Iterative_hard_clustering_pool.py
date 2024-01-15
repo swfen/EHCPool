@@ -155,7 +155,7 @@ class Iterative_hard_clustering_pool(MessagePassing):
         self.nonlinearity = nonlinearity
 
         self.weight_node = Parameter(torch.Tensor(1, node_channels), requires_grad=True)
-        self.weight_edge = Parameter(torch.Tensor(1, node_channels),requires_grad= True)
+        self.weight_edge = Parameter(torch.Tensor(1, edge_channels),requires_grad= True)
         self.Lin = nn.Sequential(nn.Linear(edge_channels, int(node_channels * node_channels))),
 
         self.reset_parameters()
@@ -244,7 +244,7 @@ class Iterative_hard_clustering_pool(MessagePassing):
     def message(self, x_j: Tensor, edge_attr: Tensor) -> Tensor:
         Linea = self.Lin[0].to(x_j.device)
         weight = Linea(edge_attr)
-        weight = weight.view(-1, self.edge_channels, self.node_channels)
+        weight = weight.view(-1, self.node_channels, self.node_channels)
         sum = torch.matmul(x_j.unsqueeze(1), weight).squeeze(1)
         return sum
 
