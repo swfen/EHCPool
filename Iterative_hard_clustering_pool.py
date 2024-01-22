@@ -230,7 +230,7 @@ class Iterative_hard_clustering_pool(MessagePassing):
         mask = torch.stack(mask).view(-1)
         edge_attr = edge_attr[mask,:]
         x_perm_lab = x_perm_lab.cpu().numpy()
-        for batch_num in range(int(len(x_perm_lab)/2)):
+        for batch_num in range(int(len(x_perm_lab)/self.subgraph_num)):
             for i in range(batch_num*self.subgraph_num,batch_num*self.subgraph_num+self.subgraph_num):
                 for j in range(self.retain_subnode):
                     x_perm_lab[i][j] = x_perm_lab[i][j]-90*batch_num
