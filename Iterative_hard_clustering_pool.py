@@ -28,7 +28,7 @@ def Iterative_topn(node_prem_lab, edge_perm, subgraph_num, retain_subnode, edge_
     sub_x_index = []
     x_perm = []
     batch = len(node_prem_lab)
-    for i in range(len(node_prem_lab)):
+    for i in range(batch):
         node_prem_batch = node_prem_lab[i,:]
         ten = torch.tensor([],dtype=torch.long,device=node_perm.device)
         for j in range(subgraph_num):
@@ -134,8 +134,8 @@ class Iterative_hard_clustering_pool(MessagePassing):
 
     def __init__(self, node_channels: int,
                  edge_channels: int,
-                 subgraph_num: Union[int, float] = 0.1,
-                 retain_subnode : Union[int, float] = 0.05,
+                 subgraph_num: int,
+                 retain_subnode : int,
                  batch_size: int = 1,
                  min_score: Optional[float] = None,
                  node_ignorance = 0,
@@ -220,7 +220,7 @@ class Iterative_hard_clustering_pool(MessagePassing):
             subgraph_edge_index_col2.append(torch.repeat_interleave(torch.tensor(i,dtype=torch.long,device=x.device), self.retain_subnode-1))
         subgraph_edge_index_col2 = torch.stack(subgraph_edge_index_col2).view(-1)
 
-        # 创建一个掩码，将要删除的索引位置置为 False，其他位置为 True
+        # Create a mask with False for the index to be deleted and True for the rest
         remove_core_mask = torch.ones(subgraph_edge_index_col1.size(), dtype=torch.bool)
         remove_core_mask[core_node_index] = False
         subgraph_edge_index_col1 = subgraph_edge_index_col1[remove_core_mask]
@@ -230,13 +230,8 @@ class Iterative_hard_clustering_pool(MessagePassing):
         mask = torch.stack(mask).view(-1)
         edge_attr = edge_attr[mask,:]
         x_perm_lab = x_perm_lab.cpu().numpy()
-        for batch_num in range(int(len(x_perm_lab)/self.subgraph_num)):
-            for i in range(batch_num*self.subgraph_num,batch_num*self.subgraph_num+self.subgraph_num):
-                for j in range(self.retain_subnode):
-                    x_perm_lab[i][j] = x_perm_lab[i][j]-90*batch_num
-
         """ N-E aggregation"""
-        out = self.propagate(subgraph_edge_index, x=x, edge_attr=edge_attr, size= None).to(x.device)
+        out = (1/self.retain_subnode)*self.propagate(subgraph_edge_index, x=x, edge_attr=edge_attr, size= None).to(x.device)
         x = x+out
         core_x = x[core_node_index, :]
         return core_x,x_perm_lab, subgraph_edge_index_perm,subgraph_edge_index, edge_attr,node_batch
