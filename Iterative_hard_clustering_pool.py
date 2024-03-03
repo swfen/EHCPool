@@ -102,9 +102,9 @@ def topk(x, ratio, batch, min_score=None, tol=1e-7):
 
     return perm,prem_lab
 
-def get_node_score(edge_score,edge_index):
+def get_edge_score(edge_score,edge_index):
     device = torch.device('cuda:0')
-    node_score = []
+    edge_score_sum = []
     edge_indices  = edge_index[1,:]
 
     for i in range(0,torch.max(edge_index).item()+1):
@@ -112,9 +112,9 @@ def get_node_score(edge_score,edge_index):
         if mask == torch.Size([]):
             i = i+1
         else:
-            node_score.append(torch.sum(edge_score[mask]))
-    node_score = torch.stack(node_score).view(-1).to(device)
-    return node_score
+            edge_score_sum.append(torch.sum(edge_score[mask]))
+    edge_score_sum = torch.stack(edge_score_sum).view(-1).to(device)
+    return edge_score_sum
 
 class Iterative_hard_clustering_pool(MessagePassing):
     r"""
@@ -139,6 +139,7 @@ class Iterative_hard_clustering_pool(MessagePassing):
                  batch_size: int = 1,
                  min_score: Optional[float] = None,
                  node_ignorance = 0,
+                 edge_ignorance= 0,
                  multiplier: float = 1.,
                  nonlinearity: Callable = torch.tanh, **kwargs):
         super().__init__(aggr='add', **kwargs)
@@ -150,6 +151,7 @@ class Iterative_hard_clustering_pool(MessagePassing):
         self.batch_size = batch_size
         self.min_score = min_score
         self.node_ignorance = node_ignorance
+        self.edge_ignorance = edge_ignorance
 
         self.multiplier = multiplier
         self.nonlinearity = nonlinearity
@@ -193,7 +195,7 @@ class Iterative_hard_clustering_pool(MessagePassing):
         edge_attr = edge_attr[edge_perm] * edge_score[edge_perm].view(-1, 1)
         edge_attr = self.multiplier * edge_attr if self.multiplier != 1 else edge_attr
 
-        node_score = (self.nonlinearity((1-self.node_ignorance)*(x * self.weight_node).sum(dim=-1)/ self.weight_node.norm(p=2, dim=-1)))+get_node_score(edge_score, edge_index)
+        node_score = (self.nonlinearity((1-self.node_ignorance)*(x * self.weight_node).sum(dim=-1)/ self.weight_node.norm(p=2, dim=-1)))+(1-self.edge_ignorance)*get_edge_score(edge_score, edge_index)
         node_perm, node_prem_lab = topk(node_score, len(node_score), node_batch, self.min_score)
 
         """ Iterative_topn"""
