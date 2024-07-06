@@ -23,21 +23,28 @@ def Iterative_topn(node_prem_lab, edge_perm, subgraph_num, retain_subnode, edge_
     node_perm = node_prem_lab.view(-1)
     edge_perm_index = torch.index_select(edge_index, 1, edge_perm)
 
-    edge_indices  = edge_perm_index[1,:]
+
     subgraph_edge_index_perm = torch.tensor((),dtype=torch.long,device=node_perm.device)
     sub_x_index = []
     x_perm = []
     batch = len(node_prem_lab)
     for i in range(batch):
         node_prem_batch = node_prem_lab[i,:]
+        edge_indices = edge_perm_index[1, :]
+        filtered_edge_perm_index = edge_perm_index
         ten = torch.tensor([],dtype=torch.long,device=node_perm.device)
         for j in range(subgraph_num):
             core = torch.tensor([node_prem_batch[j]],dtype=torch.long,device=node_perm.device)
+            if sub_x_index:
+                values_to_remove = torch.clone(sub_x_index[-1]).detach().to(edge_perm.device)
+                # Step 3: 通过布尔掩码操作移除特定值
+                mask = ~torch.eq(edge_indices,values_to_remove)
+                edge_indices = edge_indices[mask]
+                filtered_edge_perm_index = filtered_edge_perm_index[:,mask]
+
             sub_x_index.append(core)
             mask = torch.eq(edge_indices, core)
-            node_ne_lab = edge_perm_index[:,mask]
-            a = torch.isin(node_ne_lab[0, :], ten)
-            b = ~torch.isin(node_ne_lab[0,:], ten)
+            node_ne_lab = filtered_edge_perm_index[:,mask]
             node_ne_lab = node_ne_lab[:,~torch.isin(node_ne_lab[0,:], ten)]
 
             retain_arr = np.arange(0,retain_subnode-1,dtype=int)
@@ -168,15 +175,14 @@ class Iterative_hard_clustering_pool(MessagePassing):
         uniform(size, self.weight_node)
         uniform(size, self.weight_edge)
 
-    def forward(self, x, edge_index, edge_attr, node_batch=None, edge_batch=None, attn=None):
+    def forward(self, x, edge_index, edge_attr, node_batch=None, num_graphs=None, attn=None):
         """ Edge to node"""
         device = torch.device('cuda:0')
-        if edge_batch is None:
-            edge_subject_size = len(edge_attr)/self.batch_size
-            edge_batch = []
-            for i in range(self.batch_size):
-                esub_size = torch.linspace(i, i, int(edge_subject_size), dtype= torch.long)
-                edge_batch.append(esub_size)
+        edge_subject_size = len(edge_attr)/num_graphs
+        edge_batch = []
+        for i in range(num_graphs):
+            esub_size = torch.linspace(i, i, int(edge_subject_size), dtype= torch.long)
+            edge_batch.append(esub_size)
         edge_batch = torch.stack(edge_batch).view(-1).to(device)
 
         if node_batch is None:
