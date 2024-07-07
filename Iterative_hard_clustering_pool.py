@@ -30,7 +30,8 @@ def Iterative_topn(node_prem_lab, edge_perm, subgraph_num, retain_subnode, edge_
     batch = len(node_prem_lab)
     for i in range(batch):
         node_prem_batch = node_prem_lab[i,:]
-        edge_indices = edge_perm_index[1, :]
+        edge_indices_1 = edge_perm_index[0, :]
+        edge_indices_2 = edge_perm_index[1, :]
         filtered_edge_perm_index = edge_perm_index
         ten = torch.tensor([],dtype=torch.long,device=node_perm.device)
         for j in range(subgraph_num):
@@ -38,12 +39,13 @@ def Iterative_topn(node_prem_lab, edge_perm, subgraph_num, retain_subnode, edge_
             if sub_x_index:
                 values_to_remove = torch.clone(sub_x_index[-1]).detach().to(edge_perm.device)
                 # Step 3: 通过布尔掩码操作移除特定值
-                mask = ~torch.eq(edge_indices,values_to_remove)
-                edge_indices = edge_indices[mask]
+                mask = ~torch.eq(edge_indices_1,values_to_remove)
+                edge_indices_1 = edge_indices_1[mask]
+                edge_indices_2 = edge_indices_2[mask]
                 filtered_edge_perm_index = filtered_edge_perm_index[:,mask]
 
             sub_x_index.append(core)
-            mask = torch.eq(edge_indices, core)
+            mask = torch.eq(edge_indices_2, core)
             node_ne_lab = filtered_edge_perm_index[:,mask]
             node_ne_lab = node_ne_lab[:,~torch.isin(node_ne_lab[0,:], ten)]
 
